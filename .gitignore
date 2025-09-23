@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Expo files
+.expo/
+.expo-shared/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+.DS_Store
+
+# Build folders
+android/
+ios/
+build/
+dist/
+
+# Environment files
+.env
