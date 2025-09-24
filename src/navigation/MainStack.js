@@ -3,35 +3,23 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 // Import all screens
-import SignUpScreen from "../screens/SignupScreen";
-import LoginScreen from "../screens/LogIn";
 import Home from "../screens/Home";
-import Recommandedbooks from "../screens/Recommandation";
-import BookstoreApp from "../screens/Home";
 import BookDetails from "../screens/BookDetail";
 import CategoryWiseBooks from "../screens/Category_wise_Books";
 import RegistrationForm from "../screens/RegistrationForm";
+import ShippingCart from "../screens/ShippingCart";
+import ShoppingCartScreen from "../screens/ShippingCart";
+import BookSubscriptionApp from "../screens/Subscription";
 
 const Stack = createNativeStackNavigator();
 
 export default function MainStack() {
   return (
     <Stack.Navigator>
- 
-      <Stack.Screen name="SignUp" component={SignUpScreen} options={{ headerShown: false }} />
-           <Stack.Screen
-        name="Login"
-        component={LoginScreen}
-        options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="Home"
-        component={Home}
-        options={{ headerShown: false }}
-      />
+     
       <Stack.Screen
         name="Recommanded"
-        component={BookstoreApp}
+        component={Home}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -44,9 +32,15 @@ export default function MainStack() {
         component={CategoryWiseBooks}
         options={{ headerShown: false }}
       />
-      <Stack.Screen
-        name="Registration-Form"
-        component={RegistrationForm}
+      
+       <Stack.Screen
+        name="Shipping-cart"
+        component={ShoppingCartScreen}
+        options={{ headerShown: false }}
+      />
+        <Stack.Screen
+        name="Subscription"
+        component={BookSubscriptionApp}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

@@ -82,7 +82,7 @@ const LoginScreen = () => {
           })
         );
 
-      //  console.log("✅ Token saved to Redux:", response.data.token);
+
         navigation.navigate("Home");
       }
     } catch (error) {

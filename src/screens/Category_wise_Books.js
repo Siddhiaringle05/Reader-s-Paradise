@@ -13,7 +13,7 @@ import {
   Alert,
   Dimensions,
   ScrollView,
-  RefreshControl
+  RefreshControl,
 } from "react-native";
 import { useSelector } from "react-redux";
 import axios from "axios";
@@ -21,6 +21,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { MaterialCommunityIcons, FontAwesome } from "@expo/vector-icons";
 const { width } = Dimensions.get("window");
 
 const CategoryWiseBooks = () => {
@@ -36,13 +37,12 @@ const CategoryWiseBooks = () => {
   const [showAvailableFilter, setShowAvailableFilter] = useState(false);
 
   const [filters, setFilters] = useState({
-  bestSellers: false,
-  newReleases: false,
-  availableOnly: false,
-  sortBy: "title",     // could be title, author, rating etc.
-  sortOrder: "asc",    // asc or desc
-});
-
+    bestSellers: false,
+    newReleases: false,
+    availableOnly: false,
+    sortBy: "title", // could be title, author, rating etc.
+    sortOrder: "asc", // asc or desc
+  });
 
   // Get token from Redux store
   const token = useSelector((state) => state.auth.token);
@@ -50,7 +50,7 @@ const CategoryWiseBooks = () => {
   const { categoryId } = route.params || {};
   const navigation = useNavigation();
 
-  const pageSize = 1;
+  const pageSize = 6;
   const API_BASE_URL = "https://primabi.co";
 
   // Configure axios instance with default headers
@@ -93,139 +93,131 @@ const CategoryWiseBooks = () => {
       return Promise.reject(error);
     }
   );
-//Filter Logic 
-const handleFilterToggle = (key) => {
-  setFilters((prev) => {
-    const updated = { ...prev, [key]: !prev[key] };
-    setCurrentPage(1); 
-    fetchFilteredBooks(1, searchQuery, updated); 
-    return updated;
-  });
-};
-
-const handleSortToggle = () => {
-  setFilters((prev) => {
-    const updated = {
-      ...prev,
-      sortOrder: prev.sortOrder === "asc" ? "desc" : "asc",
-      sortBy: "title", // fixed sort by title
-    };
-    setCurrentPage(1); // reset page
-    fetchFilteredBooks(1, searchQuery, updated); // call API with new sort
-    return updated;
-  });
-};
-
-// Fetch filtered/sorted books
-// Unified fetch function for filters, sort, search, and refresh
-const fetchFilteredBooks = async (pageNo = 1, search = "", activeFilters = filters) => {
-  try {
-    const params = {
-      categoryId,
-      title: search,
-      bestSellers: activeFilters.bestSellers,
-      newReleases: activeFilters.newReleases,
-      sortBy: activeFilters.sortBy,
-      sortOrder: activeFilters.sortOrder,
-      page: pageNo,
-      pageSize: 20,
-    };
-
-    // Only include availableOnly if true
-if (activeFilters.availableOnly) {
-  params.availableOnly = true;
-}
-
-    const response = await apiClient.get("/api/v1/Books/search", {
-      headers: { Authorization: `Bearer ${token}` },
-      params,
+  //Filter Logic
+  const handleFilterToggle = (key) => {
+    setFilters((prev) => {
+      const updated = { ...prev, [key]: !prev[key] };
+      setCurrentPage(1);
+      fetchFilteredBooks(1, searchQuery, updated);
+      return updated;
     });
+  };
 
-    const newBooks = response.data.data || [];
+  const handleSortToggle = () => {
+    setFilters((prev) => {
+      const updated = {
+        ...prev,
+        sortOrder: prev.sortOrder === "asc" ? "desc" : "asc",
+        sortBy: "title", // fixed sort by title
+      };
+      setCurrentPage(1); // reset page
+      fetchFilteredBooks(1, searchQuery, updated); // call API with new sort
+      return updated;
+    });
+  };
 
-    if (pageNo === 1) {
-      setBooks(newBooks); // fresh list
-    } else {
-      setBooks((prev) => [...prev, ...newBooks]); // append for infinite scroll
+  // Fetch filtered/sorted books
+  // Unified fetch function for filters, sort, search, and refresh
+  const fetchFilteredBooks = async (
+    pageNo = 1,
+    search = "",
+    activeFilters = filters
+  ) => {
+    try {
+      const params = {
+        categoryId,
+        title: search,
+        bestSellers: activeFilters.bestSellers,
+        newReleases: activeFilters.newReleases,
+        sortBy: activeFilters.sortBy,
+        sortOrder: activeFilters.sortOrder,
+        page: pageNo,
+        pageSize: 20,
+      };
+
+      if (activeFilters.availableOnly) {
+        params.availableOnly = true;
+      }
+
+      const response = await apiClient.get("/api/v1/Books/search", {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
+
+      const newBooks = response.data?.data || [];
+
+      if (pageNo === 1) {
+        setBooks(newBooks);
+      } else {
+        setBooks((prevBooks) => {
+          const existingIds = new Set(prevBooks.map((b) => b.id));
+          const uniqueNew = newBooks.filter((b) => !existingIds.has(b.id));
+          return [...prevBooks, ...uniqueNew];
+        });
+      }
+
+      setTotalPages(response.data?.totalPages || 1);
+    } catch (error) {
+      console.error("Error fetching filtered books:", error);
+      Alert.alert("Error", "Failed to fetch books.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
     }
+  };
 
-    setTotalPages(response.data.totalPages || 1);
-  } catch (error) {
-    console.error("Error fetching filtered books:", error);
-    Alert.alert("Error", "Failed to fetch books.");
-  } finally {
-    setLoading(false);
-    setLoadingMore(false);
-    setRefreshing(false);
-  }
-};
-
-// Refresh handler
-const handleRefresh = () => {
-  setRefreshing(true);
-  setCurrentPage(1); 
-  fetchFilteredBooks(1, searchQuery, filters); // <-- use current filters
-};
-
-
+  // Refresh handler
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setCurrentPage(1);
+    fetchFilteredBooks(1, searchQuery, filters); // <-- use current filters
+  };
 
   // Modified fetchBooks function to support appending data for infinite scroll
- const fetchBooks = async (page = 1, search = "", showLoader = true, append = false) => {
-  if (showLoader && !append) setLoading(true);
-  if (append) setLoadingMore(true);
+  const fetchBooks = async (
+    pageNo = 1,
+    search = "",
+    reset = false,
+    initial = false
+  ) => {
+    try {
+      if (!initial) setLoading(true);
 
-  try {
-    const response = await apiClient.get("/api/v1/Books", {
-      params: {
-        page: page,
-        pageSize: pageSize,
-        search: search,
-        categoryId: categoryId,
-        // Remove hardcoded isAvailable: true if you want all books
-      },
-    });
+      const params = {
+        categoryId,
+        title: search,
+        page: pageNo,
+        pageSize: 20,
+      };
 
-    const { data, totalCount, totalPages } = response.data;
+      const response = await apiClient.get("/api/v1/Books", {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
 
-    // Update the list of books
-    if (append) {
-      setBooks(prevBooks => [...prevBooks, ...(data || [])]);
-    } else {
-      setBooks(data || []);
+      const newBooks = response.data?.data || [];
+
+      if (reset || pageNo === 1) {
+        setBooks(newBooks);
+      } else {
+        setBooks((prevBooks) => {
+          const existingIds = new Set(prevBooks.map((b) => b.id));
+          const uniqueNew = newBooks.filter((b) => !existingIds.has(b.id));
+          return [...prevBooks, ...uniqueNew];
+        });
+      }
+
+      setTotalPages(response.data?.totalPages || 1);
+    } catch (error) {
+      console.error("Error fetching books:", error);
+      Alert.alert("Error", "Failed to fetch books.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
     }
-
-    // Set total count and pages
-    setTotalCount(totalCount || 0);
-    setTotalPages(totalPages || 1);
-
-    // ✅ Check if any book is available for "Available" filter
-    const anyAvailable = (data || []).some(book => book.isAvailable === true);
-    setShowAvailableFilter(anyAvailable);
-
-  } catch (error) {
-    console.error("Error fetching books:", error);
-
-    let errorMessage = "Failed to fetch books. Please try again.";
-
-    if (error.response) {
-      errorMessage = `Server error: ${error.response.status}`;
-    } else if (error.request) {
-      errorMessage = "Network error. Please check your connection.";
-    }
-
-    Alert.alert("Error", errorMessage);
-
-    if (!append) {
-      setBooks([]);
-      setTotalCount(0);
-      setTotalPages(1);
-    }
-  } finally {
-    setLoading(false);
-    setLoadingMore(false);
-    setRefreshing(false);
-  }
-};
+  };
 
   useEffect(() => {
     // Only fetch if token is available
@@ -325,7 +317,6 @@ const handleRefresh = () => {
     }
   };
 
-
   const toggleWishlist = (bookId) => {
     const newWishlist = new Set(wishlist);
     if (newWishlist.has(bookId)) {
@@ -338,23 +329,34 @@ const handleRefresh = () => {
 
   const renderStars = (rating) => {
     const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
+    const maxStars = 5;
 
-    for (let i = 0; i < 5; i++) {
-      if (i < fullStars) {
-        stars.push(<Icon key={i} name="star" size={12} color="#FFD700" />);
-      } else if (i === fullStars && hasHalfStar) {
-        stars.push(<Icon key={i} name="star-half" size={12} color="#FFD700" />);
-      } else {
+    for (let i = 1; i <= maxStars; i++) {
+      if (i <= Math.floor(rating)) {
+        // full star
         stars.push(
-          <Icon key={i} name="star-outline" size={12} color="#C0C0C0" />
+          <FontAwesome key={i} name="star" size={16} color="#ffc800ff" />
+        );
+      } else if (i === Math.floor(rating) + 1 && rating % 1 !== 0) {
+        // half star
+        stars.push(
+          <FontAwesome
+            key={i}
+            name="star-half-full"
+            size={16}
+            color="#FFD700"
+          />
+        );
+      } else {
+        // empty star
+        stars.push(
+          <FontAwesome key={i} name="star-o" size={16} color="#FFD700" />
         );
       }
     }
+
     return stars;
   };
-
   const renderBookItem = ({ item }) => (
     <TouchableOpacity
       onPress={() => navigation.navigate("BookDetail", { id: item.id })}
@@ -377,26 +379,14 @@ const handleRefresh = () => {
               {highlightText(item.title, searchQuery)}
             </Text>
 
-            <Text style={styles.bookAuthor}>
-              By{" "}
-              {item.authors && item.authors.length > 0
-                ? item.authors.map((author, i) => (
-                    <Text key={i}>
-                      {highlightText(author.name || author, searchQuery)}
-                      {i < item.authors.length - 1 ? ", " : ""}
-                    </Text>
-                  ))
-                : "Unknown Author"}
-            </Text>
-
             <TouchableOpacity
               onPress={() => toggleWishlist(item.id)}
               style={styles.wishlistButton}
             >
-              <Icon
-                name={wishlist.has(item.id) ? "bookmark" : "bookmark-outline"}
-                size={18}
-                color={wishlist.has(item.id) ? "#FF4444" : "#999"}
+              <FontAwesome
+                name={wishlist.has(item.id) ? "bookmark" : "bookmark-o"}
+                size={22}
+                color={wishlist.has(item.id) ? "#101010ff" : "#999"}
               />
             </TouchableOpacity>
           </View>
@@ -409,7 +399,9 @@ const handleRefresh = () => {
           </Text>
 
           <View style={styles.ratingContainer}>
-            <View style={styles.starsContainer}>
+            <View
+              style={[styles.starsContainer, { flexDirection: "row", gap: 4 }]}
+            >
               {renderStars(item.averageRating || 0)}
             </View>
             <Text style={styles.reviewCount}>
@@ -426,14 +418,9 @@ const handleRefresh = () => {
             )}
             {item.availableCopies !== undefined && (
               <Text style={styles.detailText}>
-                Available: {item.availableCopies} copies
+                Available: {item.availableCopies}{" "}
+                {item.availableCopies === 1 ? "copy" : "copies"}
               </Text>
-            )}
-            {item.binding && (
-              <Text style={styles.detailText}>Binding: {item.binding}</Text>
-            )}
-            {item.isbn && (
-              <Text style={styles.detailText}>ISBN: {item.isbn}</Text>
             )}
           </View>
         </View>
@@ -472,7 +459,7 @@ const handleRefresh = () => {
   // New component to show loading indicator at the bottom
   const renderFooter = () => {
     if (!loadingMore) return null;
-    
+
     return (
       <View style={styles.footerLoader}>
         <ActivityIndicator size="small" color="#26A69A" />
@@ -483,7 +470,7 @@ const handleRefresh = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#26A69A" />
+      <StatusBar barStyle="light-content" backgroundColor="#56A6AD" />
 
       {/* Header */}
       {/* <View style={styles.header}>
@@ -500,152 +487,174 @@ const handleRefresh = () => {
       </View> */}
 
       <View style={styles.container}>
+        {/* 🔍 Search Bar */}
+        {/* 🔍 Search Bar with Bookmark */}
+        <View style={styles.searchContainer}>
+          {/* 🔍 Search + 📌 Bookmark Row */}
+          <View style={styles.searchRow}>
+            {/* Search Box */}
+            <View style={styles.searchInputContainer}>
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by title, author, or category"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onSubmitEditing={handleSearch}
+                returnKeyType="search"
+                editable={!!token}
+              />
+              <TouchableOpacity
+                onPress={handleSearch}
+                style={styles.searchButton}
+                disabled={!token}
+              >
+                <Ionicons name="search" size={16} color="#999" />
+              </TouchableOpacity>
+            </View>
 
-  {/* 🔍 Search Bar */}
-  <View style={styles.searchContainer}>
-    <View style={styles.searchInputContainer}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search by title, author, or category"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        onSubmitEditing={handleSearch}
-        returnKeyType="search"
-        editable={!!token}
-      />
-      <TouchableOpacity
-        onPress={handleSearch}
-        style={styles.searchButton}
-        disabled={!token}
-      >
-        <Ionicons name="search" size={16} color="#999" />
-      </TouchableOpacity>
-    </View>
-  </View>
+            {/* 📌 Bookmark Button Box */}
+            <TouchableOpacity
+              style={styles.bookmarkButton}
+              // onPress={() => navigation.navigate("SavedBooks")}
+            >
+              <Ionicons name="bookmark-outline" size={18} color="#333" />
+            </TouchableOpacity>
+          </View>
+        </View>
 
-  {/* ⬆️ Filter & Sort Bar (right below search box) */}
-  <View style={styles.filterSortContainer}>
-   <ScrollView
-  horizontal
-  showsHorizontalScrollIndicator={false}
-  contentContainerStyle={styles.filterSortContainer}
->
-  <TouchableOpacity
-    style={[styles.filterButton, filters.bestSellers && styles.filterButtonActive]}
-    onPress={() => handleFilterToggle("bestSellers")}
-  >
-    <Ionicons
-      name={filters.bestSellers ? "star" : "star-outline"}
-      size={18}
-      color={filters.bestSellers ? "#fff" : "#333"}
-    />
-    <Text style={[styles.filterText, filters.bestSellers && { color: "#fff" }]}>
-      Best Sellers
-    </Text>
-  </TouchableOpacity>
+        {/* ⬆️ Filter & Sort Bar (right below search box) */}
+        <View style={styles.filterSortContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterSortContainer}
+          >
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filters.bestSellers && styles.filterButtonActive,
+              ]}
+              onPress={() => handleFilterToggle("bestSellers")}
+            >
+              <Ionicons
+                name={filters.bestSellers ? "star" : "star-outline"}
+                size={18}
+                color={filters.bestSellers ? "#fff" : "#333"}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  filters.bestSellers && { color: "#fff" },
+                ]}
+              >
+                Best Sellers
+              </Text>
+            </TouchableOpacity>
 
-  <TouchableOpacity
-    style={[styles.filterButton, filters.newReleases && styles.filterButtonActive]}
-    onPress={() => handleFilterToggle("newReleases")}
-  >
-    <Ionicons
-      name={filters.newReleases ? "flame" : "flame-outline"}
-      size={18}
-      color={filters.newReleases ? "#fff" : "#333"}
-    />
-    <Text style={[styles.filterText, filters.newReleases && { color: "#fff" }]}>
-      New Releases
-    </Text>
-  </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filters.newReleases && styles.filterButtonActive,
+              ]}
+              onPress={() => handleFilterToggle("newReleases")}
+            >
+              <Ionicons
+                name={filters.newReleases ? "flame" : "flame-outline"}
+                size={18}
+                color={filters.newReleases ? "#fff" : "#333"}
+              />
+              <Text
+                style={[
+                  styles.filterText,
+                  filters.newReleases && { color: "#fff" },
+                ]}
+              >
+                New Releases
+              </Text>
+            </TouchableOpacity>
 
-{/* Available Only - show only if there are available books */}
-{showAvailableFilter && (
-  <TouchableOpacity
-    style={[
-      styles.filterButton,
-      filters.availableOnly && styles.filterButtonActive, // apply active style
-    ]}
-    onPress={() => handleFilterToggle("availableOnly")}
-  >
-    <Ionicons
-      name={
-        filters.availableOnly
-          ? "checkmark-circle"
-          : "checkmark-circle-outline"
-      }
-      size={18}
-      color={filters.availableOnly ? "#fff" : "#333"} // change color when active
-    />
-    <Text
-      style={[
-        styles.filterText,
-        filters.availableOnly && { color: "#fff" }, // text color when active
-      ]}
-    >
-      Available
-    </Text>
-  </TouchableOpacity>
-)}
+            {/* Available Only - show only if there are available books */}
+            {showAvailableFilter && (
+              <TouchableOpacity
+                style={[
+                  styles.filterButton,
+                  filters.availableOnly && styles.filterButtonActive, // apply active style
+                ]}
+                onPress={() => handleFilterToggle("availableOnly")}
+              >
+                <Ionicons
+                  name={
+                    filters.availableOnly
+                      ? "checkmark-circle"
+                      : "checkmark-circle-outline"
+                  }
+                  size={18}
+                  color={filters.availableOnly ? "#fff" : "#333"} // change color when active
+                />
+                <Text
+                  style={[
+                    styles.filterText,
+                    filters.availableOnly && { color: "#fff" }, // text color when active
+                  ]}
+                >
+                  Available
+                </Text>
+              </TouchableOpacity>
+            )}
 
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={handleSortToggle}
+            >
+              <Ionicons
+                name={filters.sortOrder === "asc" ? "arrow-up" : "arrow-down"}
+                size={18}
+                color="#333"
+              />
+              <Text style={styles.filterText}>
+                {filters.sortOrder === "asc" ? "A-Z" : "Z-A"}
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
 
-
-<TouchableOpacity
-  style={styles.filterButton}
-  onPress={handleSortToggle}
->
-  <Ionicons
-    name={filters.sortOrder === "asc" ? "arrow-up" : "arrow-down"}
-    size={18}
-    color="#333"
-  />
-  <Text style={styles.filterText}>
-    {filters.sortOrder === "asc" ? "A-Z" : "Z-A"}
-  </Text>
-</TouchableOpacity>
-
-</ScrollView>
-
-  </View>
-
-  {/* 📚 Book List */}
-  <FlatList
-  data={displayBooks} // your filtered/sorted/search list
-  keyExtractor={(item) => item.id.toString()}
-  renderItem={renderBookItem}
-  contentContainerStyle={{ paddingBottom: 20 }}
-  ListEmptyComponent={
-    searchQuery ? (
-      <Text style={{ textAlign: "center", marginTop: 20 }}>
-        No results found
-      </Text>
-    ) : null
-  }
-  // Pull-to-refresh
-  refreshing={refreshing}
-  onRefresh={() => {
-    setCurrentPage(1);
-    fetchBooks(1, searchQuery, true, false); // reset books
-  }}
-  // Infinite scroll
-// Infinite scroll
-onEndReached={() => {
-  if (!loadingMore && currentPage < totalPages) {
-    const nextPage = currentPage + 1;
-    setCurrentPage(nextPage);
-    fetchFilteredBooks(nextPage, searchQuery, filters); // ✅ use current filters
-  }
-}}
-
-  onEndReachedThreshold={0.5} // triggers when 50% from bottom
-  ListFooterComponent={
-    loadingMore ? (
-      <ActivityIndicator size="small" color="#666" style={{ margin: 10 }} />
-    ) : null
-  }
-/>
-
-</View>
-
+        {/* 📚 Book List */}
+        <FlatList
+          data={displayBooks}
+          keyExtractor={(item, index) => `${item?.id ?? "no-id"}-${index}`}
+          renderItem={renderBookItem}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          ListEmptyComponent={
+            searchQuery ? (
+              <Text style={{ textAlign: "center", marginTop: 20 }}>
+                No results found
+              </Text>
+            ) : null
+          }
+          refreshing={refreshing}
+          onRefresh={() => {
+            setCurrentPage(1);
+            fetchBooks(1, searchQuery, true, false);
+          }}
+          onEndReached={() => {
+            if (!loadingMore && currentPage < totalPages) {
+              const nextPage = currentPage + 1;
+              setCurrentPage(nextPage);
+              fetchFilteredBooks(nextPage, searchQuery, filters);
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            loadingMore ? (
+              <ActivityIndicator
+                size="small"
+                color="#666"
+                style={{ margin: 10 }}
+              />
+            ) : null
+          }
+        />
+      </View>
 
       {/* Authentication Status */}
       {!token && (
@@ -694,7 +703,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 16,
-    backgroundColor: "#f3f3f3ff",
+    backgroundColor: "#56A6AD",
     marginTop: "8%",
   },
   searchInputContainer: {
@@ -714,13 +723,42 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 14,
     color: "#333",
-    marginLeft: 10,
+    marginLeft: 15,
   },
   searchButton: {
     // backgroundColor: "#E0E0E0",
-    padding: 8,
+   // padding: 8,
     borderRadius: 4,
+    marginRight:10
   },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    //paddingHorizontal: 16,
+    //marginTop: "8%",
+    width: "85%",
+  },
+
+  searchInputContainer: {
+    // flex: 1, // ✅ search bar takes available width
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    // paddingHorizontal: 12,
+    borderWidth: 0.5,
+    borderColor: "#ccc",
+  },
+
+  bookmarkButton: {
+    marginLeft: 10, // ✅ gap between search and bookmark
+    padding: 10,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 10,
+    borderWidth: 0.5,
+    borderColor: "#ccc",
+  },
+
   authWarning: {
     flexDirection: "row",
     alignItems: "center",
@@ -752,21 +790,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   bookItem: {
-    backgroundColor: "#F8F8F8",
+    backgroundColor: "#fafafaff",
     borderRadius: 8,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 16,
     flexDirection: "row",
+    elevation: 5,
   },
   bookImage: {
-    width: 80,
-    height: 120,
+    width: 100,
+    height: 150,
     borderRadius: 6,
-    marginRight: 12,
+    marginRight: 20,
   },
   bookInfo: {
     flex: 1,
-    justifyContent: "space-between",
+    // justifyContent: "space-between",
   },
   bookHeader: {
     flexDirection: "row",
@@ -781,31 +820,33 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   wishlistButton: {
-    padding: 4,
+    // padding: 5,
+    marginRight: 10,
   },
   bookAuthor: {
     fontSize: 12,
     color: "#666",
-    marginTop: 4,
+    // marginTop: 4,
+    marginBottom: 18,
   },
   ratingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 5,
   },
   starsContainer: {
     flexDirection: "row",
-    marginRight: 8,
+    marginRight: 10,
   },
   reviewCount: {
     fontSize: 10,
     color: "#999",
   },
   bookDetails: {
-    marginTop: 8,
+    marginTop: 5,
   },
   detailText: {
-    fontSize: 10,
+    fontSize: 12,
     color: "#666",
     marginBottom: 2,
   },
@@ -867,22 +908,22 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   filterSortContainer: {
-  flexDirection: "row",
-  justifyContent: "space-around",
-  paddingVertical: 10,
-  backgroundColor: "#f9f9f9",
-},
-filterButton: {
-  flexDirection: "row",
-  alignItems: "center",
-  paddingHorizontal: 8,
-},
-filterText: {
-  marginLeft: 5,
-  fontSize: 14,
-  color: "#333",
-},
- filterSortContainer: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingVertical: 10,
+    backgroundColor: "#f9f9f9",
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+  },
+  filterText: {
+    marginLeft: 5,
+    fontSize: 14,
+    color: "#333",
+  },
+  filterSortContainer: {
     paddingVertical: 10,
     paddingHorizontal: 5,
     alignItems: "center",
@@ -904,7 +945,6 @@ filterText: {
     fontSize: 14,
     color: "#333",
   },
-
 });
 
 export default CategoryWiseBooks;

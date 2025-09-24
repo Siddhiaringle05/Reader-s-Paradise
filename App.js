@@ -6,7 +6,7 @@ import { Provider } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 
 import { store, persistor } from "./src/redux/store";
-import MainStack from "./src/navigation/MainStack";
+import AppNavigator from "./src/navigation/AppNavigator";
 
 export default function App() {
   return (
@@ -17,7 +17,7 @@ export default function App() {
             backgroundColor="rgb(244, 245, 246)"
             barStyle="dark-content"
           />
-          <MainStack />
+          <AppNavigator />
         </NavigationContainer>
       </PersistGate>
     </Provider>
